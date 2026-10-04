@@ -282,6 +282,8 @@ export const createOrderPrompt = (context: Context) => `
 Create an order in PayPal.
 
 This tool is used to create a new order in PayPal. This is typically the first step in initiating a payment flow. It sets up an order with specified details such as item(s) to be purchased, quantity, amount, currency, and other details.
+
+To make retries safe, pass request_id: the same value every time you retry this purchase, and a new value for each different purchase.
 `;
 
 export const getOrderPrompt = (context: Context) => `
@@ -294,6 +296,8 @@ export const captureOrderPrompt = (context: Context) => `
 Capture a payment for an order.
 
 This tool is used to capture a payment for an order. It allows you to capture funds that have been authorized for a specific order but not yet captured.
+
+Retrying a capture of the same order is safe: unless you pass a request_id, the order id is used as the idempotency key, so PayPal returns the original result.
 `;
 // === DISPUTE PROMPTS ===
 

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { randomUUID } from 'crypto';
 import type { Context } from './configuration';
 import {
   getInvoicParameters,
@@ -1010,10 +1011,12 @@ export const createOrder = async (
   params: TypeOf<ReturnType<typeof createOrderParameters>>
 ): Promise<any> => {
   logger('[createOrder] Starting order creation process');
-  const headers = await client.getHeaders();
   const url = `${client.getBaseUrl()}/v2/checkout/orders`;
   const schema = createOrderParameters(context);
   const parsedParams = schema.parse(params);
+  // The caller's key makes retries safe. Without one, a fresh key per call: two different orders
+  // must never share one, even when the client has a request_id configured.
+  const headers = await client.getHeaders(parsedParams.request_id ?? randomUUID());
   const orderRequest = parseOrderDetails(parsedParams);
   try {
     const response = await axios.post(url, orderRequest, { headers });
@@ -1059,8 +1062,10 @@ export const captureOrder = async (
   try {
     logger(`[captureOrder] Starting order capture process with params: ${JSON.stringify(params)}`);
     const url = `${client.getBaseUrl()}/v2/checkout/orders/${params.id}/capture`;
+    // One capture per order, so the order id is a natural key: a retried capture of the same
+    // order gets PayPal's original result rather than a second attempt or an error.
     const response = await axios.post(url, {}, {
-      headers: await client.getHeaders()
+      headers: await client.getHeaders(params.request_id ?? `capture-${params.id}`)
     });
     logger(`[captureOrder] Response %s`, response);
     if (response.status <= 299) {
