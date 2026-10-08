@@ -1422,9 +1422,18 @@ export async function listTransactions(
 ): Promise<any> {
   logger(`[createRefund] Starting to refund capture for ID: ${params.capture_id}`);
 
-  const { capture_id } = params;
+  // request_id is the idempotency key, not part of the refund PayPal is asked for.
+  const { capture_id, request_id, ...refund } = params;
 
-  const headers = await client.getHeaders();
+  // Without a caller's key, one derived from what is refunded: a retried refund of the same
+  // capture, amount and invoice is the same request, so PayPal returns the original refund
+  // instead of refunding twice.
+  const key =
+    request_id ??
+    ['refund', capture_id, refund.amount?.value ?? 'full', refund.amount?.currency_code, refund.invoice_id]
+      .filter(Boolean)
+      .join('-');
+  const headers = await client.getHeaders(key);
   logger('[createRefund] Headers obtained');
 
   const url = `${client.getBaseUrl()}/v2/payments/captures/${capture_id}/refund`;
@@ -1432,7 +1441,7 @@ export async function listTransactions(
 
   try {
     logger('[createRefund] Sending request to PayPal API');
-    const response = await axios.post(url, params, { headers });
+    const response = await axios.post(url, refund, { headers });
     logger(`[createRefund] Capture refunded successfully. Status: ${response.status}`);
     return response.data;
   } catch (error: any) {

@@ -1,11 +1,12 @@
 import axios from 'axios';
 import PayPalClient from '../client';
-import { captureOrder, createOrder, getOrder } from '../functions';
+import { captureOrder, createOrder, createRefund, getOrder } from '../functions';
 
 jest.mock('axios');
 const mocked = axios as jest.Mocked<typeof axios>;
 
 const ORDER_ID = '5O190127TN364715T';
+const CAPTURE_ID = '2GG279541U471931P';
 const order = {
   currencyCode: 'USD' as const,
   items: [{ name: 'Water bottle', quantity: 1, itemCost: 24, taxPercent: 0, itemTotal: 24 }],
@@ -54,6 +55,43 @@ describe('PayPal-Request-Id', () => {
   it('lets the caller choose the capture key', async () => {
     await captureOrder(client(), {}, { id: ORDER_ID, request_id: 'capture-attempt-2' });
     expect(requestIdOf(mocked.post as jest.Mock, 0)).toBe('capture-attempt-2');
+  });
+
+  it('keys a refund on its capture, amount and invoice, so a retried refund is the same request', async () => {
+    const paypal = client();
+    const partial = {
+      capture_id: CAPTURE_ID,
+      amount: { currency_code: 'USD', value: '20.00' },
+      invoice_id: 'INV-7',
+    };
+    await createRefund(paypal, {}, partial as any);
+    await createRefund(paypal, {}, partial as any);
+    const key = `refund-${CAPTURE_ID}-20.00-USD-INV-7`;
+    expect(requestIdOf(mocked.post as jest.Mock, 0)).toBe(key);
+    expect(requestIdOf(mocked.post as jest.Mock, 1)).toBe(key);
+  });
+
+  it('gives different refunds of one capture different keys', async () => {
+    const paypal = client();
+    await createRefund(paypal, {}, { capture_id: CAPTURE_ID } as any);
+    await createRefund(paypal, {}, {
+      capture_id: CAPTURE_ID,
+      amount: { currency_code: 'USD', value: '5.00' },
+    } as any);
+    expect(requestIdOf(mocked.post as jest.Mock, 0)).toBe(`refund-${CAPTURE_ID}-full`);
+    expect(requestIdOf(mocked.post as jest.Mock, 1)).toBe(`refund-${CAPTURE_ID}-5.00-USD`);
+  });
+
+  it('lets the caller choose the refund key, and never sends it to PayPal in the body', async () => {
+    await createRefund(client(), {}, {
+      capture_id: CAPTURE_ID,
+      amount: { currency_code: 'USD', value: '20.00' },
+      request_id: 'second-refund-on-purpose',
+    } as any);
+    expect(requestIdOf(mocked.post as jest.Mock, 0)).toBe('second-refund-on-purpose');
+    expect((mocked.post as jest.Mock).mock.calls[0]?.[1]).toEqual({
+      amount: { currency_code: 'USD', value: '20.00' },
+    });
   });
 
   it('leaves every other call as it was', async () => {

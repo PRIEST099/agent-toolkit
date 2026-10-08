@@ -815,6 +815,9 @@ export const createRefundParameters = (context: Context) => z.object({
   }).optional().describe('The amount to refund. If not specified, the full captured amount is refunded.'),
   invoice_id: z.string().regex(INVOICE_ID_REGEX, "Invalid PayPal Invoice ID").optional().describe('The invoice ID that is used to track this payment.'),
   note_to_payer: z.string().optional().describe('A note to the payer.'),
+  request_id: z.string().min(1).max(108).optional().describe(
+    `${requestIdDescription} Defaults to one derived from the capture id, amount and invoice id, so a retried refund gets the original result. To make a second refund of the same amount on the same capture on purpose, pass a new value.`
+  ),
 });
 
 export const getMerchantInsightsParameters = (context: Context) => z.object({

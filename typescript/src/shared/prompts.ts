@@ -371,6 +371,7 @@ Required parameters:
 - Capture ID: The ID of the capture to refund
 - Amount (optional): For partial refunds, specify the amount to refund (must be less than or equal to the captured amount)
 - Note to Payer (optional): Additional explanation visible to the customer
+Retrying a refund is safe: unless you pass a request_id, one derived from the capture ID, amount and invoice ID is used as the idempotency key, so PayPal returns the original refund instead of refunding twice. If a call times out, check the order (get order shows its refunds) before deciding anything else. To refund the same amount on the same capture a second time on purpose, pass a new request_id.
 Response details include:
 - Refund ID and status
 - Refunded amount and currency
